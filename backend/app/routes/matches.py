@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from app import db
-from app.models.database import Match, Team, Season, League
+from app.models.database import Match, Team, Season, League, Prediction
 
 matches_bp = Blueprint("matches", __name__)
 
@@ -113,4 +113,32 @@ def get_stats():
         "total_matches": total_matches,
         "total_teams": total_teams,
         "seasons": [s.year for s in seasons],
+    })
+
+
+@matches_bp.route("/<int:match_id>/details", methods=["GET"])
+def get_match_details(match_id):
+    """Retorna detalhes da partida (resultado real + predição do modelo)."""
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({"error": "Partida não encontrada"}), 404
+
+    match_dict = match.to_dict()
+
+    # Gerar predição retroativa com o modelo atual
+    prediction_data = None
+    try:
+        from app.ml.predictor import Predictor
+        predictor = Predictor()
+        prediction_data = predictor.predict(
+            match.home_team.api_id,
+            match.away_team.api_id,
+            save=False,
+        )
+    except Exception:
+        pass
+
+    return jsonify({
+        "match": match_dict,
+        "prediction": prediction_data,
     })

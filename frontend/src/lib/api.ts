@@ -90,6 +90,14 @@ export const getH2H = (homeTeam: number, awayTeam: number) =>
     { params: { home_team: homeTeam, away_team: awayTeam } }
   );
 
+export interface MatchDetails {
+  match: MatchData;
+  prediction: PredictionResult | null;
+}
+
+export const getMatchDetails = (matchId: number) =>
+  api.get<MatchDetails>(`/matches/${matchId}/details`);
+
 export const predict = (homeTeamApiId: number, awayTeamApiId: number) =>
   api.post<PredictionResult>("/predictions/predict", {
     home_team_api_id: homeTeamApiId,

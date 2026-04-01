@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Team, MatchData, getMatchHistory } from "@/lib/api";
 import Image from "next/image";
+import MatchDetails from "./MatchDetails";
 
 interface Props {
   teams: Team[];
@@ -15,6 +16,7 @@ export default function MatchHistory({ teams }: Props) {
   const [totalPages, setTotalPages] = useState(0);
   const [selectedTeam, setSelectedTeam] = useState<number | undefined>();
   const [selectedSeason, setSelectedSeason] = useState<number | undefined>();
+  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
 
   const fetchMatches = async (p: number = 1) => {
     setLoading(true);
@@ -37,6 +39,16 @@ export default function MatchHistory({ teams }: Props) {
   const handleSearch = () => {
     fetchMatches(1);
   };
+
+  // Se uma partida foi selecionada, mostrar os detalhes
+  if (selectedMatchId !== null) {
+    return (
+      <MatchDetails
+        matchId={selectedMatchId}
+        onBack={() => setSelectedMatchId(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -108,7 +120,8 @@ export default function MatchHistory({ teams }: Props) {
             {matches.map((m) => (
               <div
                 key={m.id}
-                className="flex items-center justify-between px-4 py-3 hover:bg-[var(--bg-secondary)] transition-colors"
+                onClick={() => setSelectedMatchId(m.id)}
+                className="flex items-center justify-between px-4 py-3 hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2 flex-1 justify-end">
                   <span className="text-sm font-medium text-right">
@@ -148,6 +161,10 @@ export default function MatchHistory({ teams }: Props) {
                     {m.away_team.name}
                   </span>
                 </div>
+
+                <span className="text-[10px] text-[var(--text-secondary)] ml-2 hidden md:inline">
+                  Detalhes →
+                </span>
               </div>
             ))}
           </div>
