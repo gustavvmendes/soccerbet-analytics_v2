@@ -5,6 +5,20 @@ import { MatchData, PredictionResult, getMatchDetails } from "@/lib/api";
 import ScoreHeatmap from "./ScoreHeatmap";
 import Image from "next/image";
 
+// Calcula P(X > threshold) usando Poisson CDF
+function poissonOver(lambda: number, threshold: number): number {
+  // P(X > k) = 1 - P(X <= k)
+  const k = Math.floor(threshold);
+  let cdf = 0;
+  let term = Math.exp(-lambda);
+  cdf += term;
+  for (let i = 1; i <= k; i++) {
+    term *= lambda / i;
+    cdf += term;
+  }
+  return 1 - cdf;
+}
+
 interface Props {
   matchId: number;
   onBack: () => void;
@@ -361,19 +375,77 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
       )}
 
       {/* Estatísticas previstas (jogos futuros — sem dados reais) */}
-      {!isFinished && xgb && (
-        <div className="bg-[var(--bg-card)] rounded-xl p-5 border border-[var(--border-color)]">
-          <h3 className="text-sm font-semibold mb-4 text-[var(--text-secondary)] uppercase tracking-wider">
-            Estatísticas Previstas
-          </h3>
-          <div className="space-y-3">
-            <StatRow label="Posse de Bola (%)" home={xgb.home_possession} away={xgb.away_possession} />
-            <StatRow label="Chutes" home={xgb.home_shots} away={xgb.away_shots} />
-            <StatRow label="Escanteios" home={xgb.home_corners} away={xgb.away_corners} />
-            <StatRow label="Cartões" home={xgb.home_cards} away={xgb.away_cards} />
+      {!isFinished && xgb && (() => {
+        const totalShots = xgb.home_shots + xgb.away_shots;
+        const totalCorners = xgb.home_corners + xgb.away_corners;
+        const totalCards = xgb.home_cards + xgb.away_cards;
+
+        const statGroups = [
+          {
+            title: "Posse de Bola",
+            type: "possession" as const,
+            home: xgb.home_possession,
+            away: xgb.away_possession,
+          },
+          {
+            title: "Chutes Totais",
+            subtitle: `Previsão: ${totalShots.toFixed(1)} chutes`,
+            lambda: totalShots,
+            thresholds: [16.5, 18.5, 20.5, 22.5, 24.5],
+          },
+          {
+            title: "Escanteios",
+            subtitle: `Previsão: ${totalCorners.toFixed(1)} escanteios`,
+            lambda: totalCorners,
+            thresholds: [6.5, 7.5, 8.5, 9.5, 10.5],
+          },
+          {
+            title: "Cartões",
+            subtitle: `Previsão: ${totalCards.toFixed(1)} cartões`,
+            lambda: totalCards,
+            thresholds: [2.5, 3.5, 4.5, 5.5, 6.5],
+          },
+        ];
+
+        return (
+          <div className="bg-[var(--bg-card)] rounded-xl p-5 border border-[var(--border-color)]">
+            <h3 className="text-sm font-semibold mb-4 text-[var(--text-secondary)] uppercase tracking-wider">
+              Estatísticas Previstas
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {statGroups.map((group) => (
+                <div key={group.title}>
+                  <h4 className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-1">
+                    {group.title}
+                  </h4>
+                  {group.type === "possession" ? (
+                    <>
+                      <p className="text-[10px] text-[var(--text-secondary)] mb-3">
+                        {match.home_team.name} {group.home!.toFixed(1)}% — {match.away_team.name} {group.away!.toFixed(1)}%
+                      </p>
+                      <StatRow label="Posse de Bola (%)" home={group.home!} away={group.away!} />
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-[var(--text-secondary)] mb-3">{group.subtitle}</p>
+                      <div className="space-y-3">
+                        {group.thresholds!.map((t) => (
+                          <ProbBar
+                            key={t}
+                            label={`Over ${t}`}
+                            value={poissonOver(group.lambda!, t)}
+                            color="var(--accent-blue)"
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Heatmap de placares (jogos futuros) */}
       {!isFinished && prediction?.score_matrix && (
