@@ -51,12 +51,20 @@ def get_upcoming():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     per_page = min(per_page, 100)
+    team_id = request.args.get("team_id", type=int)
 
     query = (
         Match.query
         .filter(Match.status.in_(["NS", "TBD", "PST", "SUSP"]))
         .order_by(Match.date.asc())
     )
+
+    if team_id:
+        team = Team.query.filter_by(api_id=team_id).first()
+        if team:
+            query = query.filter(
+                (Match.home_team_id == team.id) | (Match.away_team_id == team.id)
+            )
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 

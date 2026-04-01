@@ -46,6 +46,7 @@ export default function MatchHistory({ teams }: Props) {
       <MatchDetails
         matchId={selectedMatchId}
         onBack={() => setSelectedMatchId(null)}
+        backLabel="Voltar ao histórico"
       />
     );
   }
