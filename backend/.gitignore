@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.so
+.env
+*.db
+venv/
+.venv/
+ml_models/*.joblib
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+instance/
