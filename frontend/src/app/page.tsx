@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import DataManager from "@/components/DataManager";
 import MatchHistory from "@/components/MatchHistory";
 import UpcomingMatches from "@/components/UpcomingMatches";
+import TeamSquad from "@/components/TeamSquad";
 import { Team, getTeams } from "@/lib/api";
 
-type Tab = "upcoming" | "history" | "data";
+type Tab = "upcoming" | "history" | "squads" | "data";
 
 export default function Home() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -34,6 +35,7 @@ export default function Home() {
         {([
           ["upcoming", "Próximos Jogos"],
           ["history", "Histórico"],
+          ["squads", "Elencos"],
           ["data", "Dados"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
@@ -55,6 +57,9 @@ export default function Home() {
 
       {/* Tab: Histórico */}
       {activeTab === "history" && <MatchHistory teams={teams} />}
+
+      {/* Tab: Elencos */}
+      {activeTab === "squads" && <TeamSquad teams={teams} />}
 
       {/* Tab: Dados */}
       {activeTab === "data" && <DataManager />}

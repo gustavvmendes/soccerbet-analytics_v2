@@ -95,6 +95,138 @@ export interface MatchDetails {
   prediction: PredictionResult | null;
 }
 
+// ── Novos tipos ──────────────────────────────────────
+
+export interface PlayerInfo {
+  id: number;
+  api_id: number;
+  name: string;
+  firstname: string | null;
+  lastname: string | null;
+  age: number | null;
+  nationality: string | null;
+  height: string | null;
+  weight: string | null;
+  photo: string | null;
+  position: string | null;
+  number: number | null;
+  team_api_id: number;
+  season_stats: PlayerSeasonStats | null;
+}
+
+export interface PlayerSeasonStats {
+  player_api_id: number;
+  team_api_id: number;
+  season: number;
+  appearances: number;
+  lineups: number;
+  minutes: number;
+  rating: number | null;
+  goals: number;
+  assists: number;
+  yellow_cards: number;
+  red_cards: number;
+  shots_total: number;
+  shots_on: number;
+  passes_total: number;
+  passes_key: number;
+  passes_accuracy: number | null;
+  tackles: number;
+  interceptions: number;
+  duels_total: number;
+  duels_won: number;
+  dribbles_attempts: number;
+  dribbles_success: number;
+  fouls_drawn: number;
+  fouls_committed: number;
+}
+
+export interface SquadResponse {
+  team: Team;
+  players: PlayerInfo[];
+  season: number;
+}
+
+export interface LineupTeam {
+  team: Team;
+  formation: string;
+  starters: LineupPlayer[];
+  substitutes: LineupPlayer[];
+}
+
+export interface LineupPlayer {
+  team_api_id: number;
+  formation: string;
+  player_api_id: number;
+  player_name: string;
+  player_number: number | null;
+  player_pos: string | null;
+  player_grid: string | null;
+  is_starter: boolean;
+}
+
+export interface InjuryTeam {
+  team: Team;
+  injuries: InjuryEntry[];
+}
+
+export interface InjuryEntry {
+  team_api_id: number;
+  player_api_id: number;
+  player_name: string;
+  player_photo: string | null;
+  type: string;
+  reason: string;
+}
+
+export interface OddsData {
+  bookmaker: string;
+  match_winner: { home: number | null; draw: number | null; away: number | null };
+  match_winner_probs: { home: number | null; draw: number | null; away: number | null };
+  over_under_25: { over: number | null; under: number | null };
+  btts: { yes: number | null; no: number | null };
+  double_chance: { home_draw: number | null; draw_away: number | null; home_away: number | null };
+}
+
+export interface ExplanationDC {
+  home_attack: number;
+  home_defense: number;
+  away_attack: number;
+  away_defense: number;
+  home_advantage: number;
+  home_advantage_pct: number;
+  league_avg_attack: number;
+  league_avg_defense: number;
+  home_attack_rank: number;
+  home_defense_rank: number;
+  away_attack_rank: number;
+  away_defense_rank: number;
+  total_teams: number;
+  lambda_home: number;
+  lambda_away: number;
+  formula_home: string;
+  formula_away: string;
+}
+
+export interface ExplanationFeatures {
+  home_form: Record<string, number>;
+  home_as_home: Record<string, number>;
+  away_form: Record<string, number>;
+  away_as_away: Record<string, number>;
+  h2h: Record<string, number>;
+}
+
+export interface KeyFactor {
+  type: string;
+  text: string;
+}
+
+export interface ExplanationData {
+  dixon_coles: ExplanationDC | null;
+  features: ExplanationFeatures | null;
+  key_factors: KeyFactor[];
+}
+
 export const getMatchDetails = (matchId: number) =>
   api.get<MatchDetails>(`/matches/${matchId}/details`);
 
@@ -124,5 +256,85 @@ export const trainModels = (seasons: number[]) =>
   api.post("/data/train", { seasons });
 
 export const getDataStatus = () => api.get<DataStatus>("/data/status");
+
+// ── Novas API functions ──────────────────────────────
+
+export const getSquad = (teamApiId: number, season = 2026) =>
+  api.get<SquadResponse>(`/matches/squad/${teamApiId}`, { params: { season } });
+
+export const getMatchLineups = (matchId: number) =>
+  api.get<LineupTeam[]>(`/matches/${matchId}/lineups`);
+
+export const getMatchInjuries = (matchId: number) =>
+  api.get<InjuryTeam[]>(`/matches/${matchId}/injuries`);
+
+export const getMatchOdds = (matchId: number) =>
+  api.get<OddsData | null>(`/matches/${matchId}/odds`);
+
+export const getMatchExplanation = (matchId: number) =>
+  api.get<ExplanationData>(`/matches/${matchId}/explanation`);
+
+export const collectSquads = (season: number) =>
+  api.post("/data/collect/squads", { season });
+
+export const collectLineups = (season: number) =>
+  api.post("/data/collect/lineups", { season });
+
+export const collectOdds = (season: number) =>
+  api.post("/data/collect/odds", { season });
+
+export const collectInjuries = (season: number) =>
+  api.post("/data/collect/injuries", { season });
+
+// ── Player match prediction ─────────────────────────
+
+export interface PlayerPredictionStats {
+  goals: number;
+  goal_probability: number;
+  shots: number;
+  assists: number;
+  assist_probability: number;
+  key_passes: number;
+  tackles: number;
+  interceptions: number;
+  dribbles: number;
+  fouls_committed: number;
+  yellow_card_prob: number;
+  red_card_prob: number;
+  estimated_rating: number | null;
+}
+
+export interface PlayerContribution {
+  goal_share: number;
+  shot_share: number;
+  assist_share: number;
+  card_share: number;
+}
+
+export interface PlayerPredictionExplanation {
+  type: string;
+  text: string;
+}
+
+export interface PlayerMatchPrediction {
+  player: PlayerInfo;
+  season_stats: PlayerSeasonStats;
+  match: MatchData;
+  is_home: boolean;
+  starter_probability: number;
+  estimated_minutes: number;
+  predictions: PlayerPredictionStats;
+  contribution: PlayerContribution;
+  team_prediction: {
+    team_lambda: number;
+    team_shots: number;
+    team_corners: number;
+    team_cards: number;
+  };
+  explanations: PlayerPredictionExplanation[];
+}
+
+export const getPlayerMatchPrediction = (matchId: number, playerApiId: number) =>
+  api.get<PlayerMatchPrediction>(`/matches/${matchId}/player-prediction/${playerApiId}`);
 
 export default api;

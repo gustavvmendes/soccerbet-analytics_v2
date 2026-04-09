@@ -6,6 +6,10 @@ import {
   collectData,
   collectMultipleSeasons,
   trainModels,
+  collectSquads,
+  collectLineups,
+  collectOdds,
+  collectInjuries,
   DataStatus,
 } from "@/lib/api";
 
@@ -76,6 +80,24 @@ export default function DataManager() {
       fetchStatus();
     } catch (err: any) {
       setError(err.response?.data?.error || "Erro no treino");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSupplementary = async (
+    fn: (season: number) => Promise<any>,
+    label: string,
+    season = 2026
+  ) => {
+    setLoading(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await fn(season);
+      setMessage(`${label}: ${JSON.stringify(res.data.message || res.data)}`);
+    } catch (err: any) {
+      setError(err.response?.data?.error || `Erro ao coletar ${label}`);
     } finally {
       setLoading(false);
     }
@@ -173,6 +195,44 @@ export default function DataManager() {
             {error}
           </p>
         )}
+      </div>
+
+      {/* Dados Suplementares */}
+      <div className="bg-[var(--bg-card)] rounded-xl p-6 border border-[var(--border-color)]">
+        <h2 className="text-lg font-semibold mb-4">Dados Suplementares</h2>
+        <p className="text-xs text-[var(--text-secondary)] mb-3">
+          Coleta elencos, escalações, odds e lesões da API-Football (temporada 2026).
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button
+            onClick={() => handleSupplementary(collectSquads, "Elencos")}
+            disabled={loading}
+            className="py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-sm hover:border-[var(--accent-blue)] disabled:opacity-40 transition-colors"
+          >
+            Coletar Elencos + Stats
+          </button>
+          <button
+            onClick={() => handleSupplementary(collectLineups, "Escalações")}
+            disabled={loading}
+            className="py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-sm hover:border-[var(--accent-blue)] disabled:opacity-40 transition-colors"
+          >
+            Coletar Escalações
+          </button>
+          <button
+            onClick={() => handleSupplementary(collectOdds, "Odds")}
+            disabled={loading}
+            className="py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-sm hover:border-[var(--accent-blue)] disabled:opacity-40 transition-colors"
+          >
+            Coletar Odds Pré-jogo
+          </button>
+          <button
+            onClick={() => handleSupplementary(collectInjuries, "Lesões")}
+            disabled={loading}
+            className="py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-sm hover:border-[var(--accent-blue)] disabled:opacity-40 transition-colors"
+          >
+            Coletar Lesões/Suspensões
+          </button>
+        </div>
       </div>
     </div>
   );

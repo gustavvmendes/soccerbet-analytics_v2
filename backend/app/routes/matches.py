@@ -1,6 +1,9 @@
 from flask import Blueprint, jsonify, request
 from app import db
-from app.models.database import Match, Team, Season, League, Prediction
+from app.models.database import (
+    Match, Team, Season, League, Prediction,
+    MatchLineup, MatchInjury, MatchOdds, Player, PlayerSeasonStats,
+)
 
 matches_bp = Blueprint("matches", __name__)
 
@@ -150,3 +153,147 @@ def get_match_details(match_id):
         "match": match_dict,
         "prediction": prediction_data,
     })
+
+
+@matches_bp.route("/<int:match_id>/lineups", methods=["GET"])
+def get_match_lineups(match_id):
+    """Retorna escalações de uma partida."""
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({"error": "Partida não encontrada"}), 404
+
+    lineups = MatchLineup.query.filter_by(match_id=match.id).all()
+
+    # Organizar por time
+    teams = {}
+    for ln in lineups:
+        t_id = ln.team_api_id
+        if t_id not in teams:
+            team = Team.query.filter_by(api_id=t_id).first()
+            teams[t_id] = {
+                "team": team.to_dict() if team else {"api_id": t_id},
+                "formation": ln.formation,
+                "starters": [],
+                "substitutes": [],
+            }
+        entry = ln.to_dict()
+        if ln.is_starter:
+            teams[t_id]["starters"].append(entry)
+        else:
+            teams[t_id]["substitutes"].append(entry)
+
+    return jsonify(list(teams.values()))
+
+
+@matches_bp.route("/<int:match_id>/injuries", methods=["GET"])
+def get_match_injuries(match_id):
+    """Retorna lesões/suspensões para uma partida."""
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({"error": "Partida não encontrada"}), 404
+
+    injuries = MatchInjury.query.filter_by(match_api_id=match.api_id).all()
+
+    # Organizar por time
+    by_team = {}
+    for inj in injuries:
+        t_id = inj.team_api_id
+        if t_id not in by_team:
+            team = Team.query.filter_by(api_id=t_id).first()
+            by_team[t_id] = {
+                "team": team.to_dict() if team else {"api_id": t_id},
+                "injuries": [],
+            }
+        by_team[t_id]["injuries"].append(inj.to_dict())
+
+    return jsonify(list(by_team.values()))
+
+
+@matches_bp.route("/<int:match_id>/odds", methods=["GET"])
+def get_match_odds(match_id):
+    """Retorna odds pré-jogo de uma partida."""
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({"error": "Partida não encontrada"}), 404
+
+    odds = MatchOdds.query.filter_by(match_api_id=match.api_id).first()
+    if not odds:
+        return jsonify(None)
+
+    return jsonify(odds.to_dict())
+
+
+@matches_bp.route("/<int:match_id>/explanation", methods=["GET"])
+def get_match_explanation(match_id):
+    """Retorna explicação detalhada da predição."""
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({"error": "Partida não encontrada"}), 404
+
+    try:
+        from app.ml.predictor import Predictor
+        predictor = Predictor()
+        explanation = predictor.get_explanation(
+            match.home_team.api_id,
+            match.away_team.api_id,
+        )
+        return jsonify(explanation)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@matches_bp.route("/squad/<int:team_api_id>", methods=["GET"])
+def get_squad(team_api_id):
+    """Retorna elenco + stats de um time."""
+    season = request.args.get("season", 2026, type=int)
+
+    team = Team.query.filter_by(api_id=team_api_id).first()
+    if not team:
+        return jsonify({"error": "Time não encontrado"}), 404
+
+    players = Player.query.filter_by(team_api_id=team_api_id).all()
+
+    result = []
+    for p in players:
+        p_dict = p.to_dict()
+        stats = PlayerSeasonStats.query.filter_by(
+            player_api_id=p.api_id,
+            team_api_id=team_api_id,
+            season=season,
+        ).first()
+        p_dict["season_stats"] = stats.to_dict() if stats else None
+        result.append(p_dict)
+
+    # Ordenar: por posição (G, D, M, A) e depois por lineups desc
+    pos_order = {"Goalkeeper": 0, "Defender": 1, "Midfielder": 2, "Attacker": 3}
+    result.sort(key=lambda p: (
+        pos_order.get(p.get("position", ""), 4),
+        -(p.get("season_stats", {}) or {}).get("lineups", 0),
+    ))
+
+    return jsonify({
+        "team": team.to_dict(),
+        "players": result,
+        "season": season,
+    })
+
+
+@matches_bp.route("/<int:match_id>/player-prediction/<int:player_api_id>", methods=["GET"])
+def get_player_match_prediction(match_id, player_api_id):
+    """Retorna predição individual de um jogador para uma partida."""
+    match = Match.query.get(match_id)
+    if not match:
+        return jsonify({"error": "Partida não encontrada"}), 404
+
+    try:
+        from app.ml.predictor import Predictor
+        predictor = Predictor()
+        result = predictor.predict_player_match(
+            player_api_id,
+            match.home_team.api_id,
+            match.away_team.api_id,
+        )
+        result["match"] = match.to_dict()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

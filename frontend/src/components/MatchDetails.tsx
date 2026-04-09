@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MatchData, PredictionResult, getMatchDetails } from "@/lib/api";
-import ScoreHeatmap from "./ScoreHeatmap";
+import {
+  MatchData, PredictionResult, getMatchDetails,
+  OddsData, InjuryTeam, LineupTeam, ExplanationData,
+  getMatchOdds, getMatchInjuries, getMatchLineups, getMatchExplanation,
+} from "@/lib/api";
+import PlayerMatchPrediction from "./PlayerMatchPrediction";
 import Image from "next/image";
 
 // Calcula P(X > threshold) usando Poisson CDF
@@ -108,9 +112,67 @@ function ProbBar({
   );
 }
 
+function OddsRow({
+  label,
+  modelProb,
+  oddsProb,
+  odd,
+}: {
+  label: string;
+  modelProb: number;
+  oddsProb: number | null | undefined;
+  odd: number | null | undefined;
+}) {
+  const hasValue = oddsProb != null && modelProb > oddsProb;
+  return (
+    <tr className="border-b border-[var(--border-color)]">
+      <td className="py-2 px-3 text-sm">{label}</td>
+      <td className="py-2 px-3 text-sm text-center font-medium text-[var(--accent-blue)]">
+        {(modelProb * 100).toFixed(1)}%
+      </td>
+      <td className="py-2 px-3 text-sm text-center font-medium">
+        {oddsProb != null ? (
+          <span className={hasValue ? "text-[var(--accent-green)]" : ""}>
+            {(oddsProb * 100).toFixed(1)}%
+          </span>
+        ) : "—"}
+      </td>
+      <td className="py-2 px-3 text-sm text-center text-[var(--text-secondary)]">
+        {odd != null ? odd.toFixed(2) : "—"}
+      </td>
+    </tr>
+  );
+}
+
+function FeatureRow({
+  label,
+  value,
+  pct,
+  suffix,
+}: {
+  label: string;
+  value: number | undefined;
+  pct?: boolean;
+  suffix?: string;
+}) {
+  if (value == null) return null;
+  const display = pct ? `${(value * 100).toFixed(0)}%` : `${value.toFixed(1)}${suffix || ""}`;
+  return (
+    <div className="flex justify-between py-0.5 px-2 rounded odd:bg-[var(--bg-secondary)]">
+      <span className="text-[var(--text-secondary)]">{label}</span>
+      <span className="font-medium">{display}</span>
+    </div>
+  );
+}
+
 export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
   const [match, setMatch] = useState<MatchData | null>(null);
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
+  const [odds, setOdds] = useState<OddsData | null>(null);
+  const [injuries, setInjuries] = useState<InjuryTeam[]>([]);
+  const [lineups, setLineups] = useState<LineupTeam[]>([]);
+  const [explanation, setExplanation] = useState<ExplanationData | null>(null);
+  const [selectedPlayerApiId, setSelectedPlayerApiId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -123,6 +185,12 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
       })
       .catch(() => setError("Erro ao carregar detalhes"))
       .finally(() => setLoading(false));
+
+    // Fetch supplementary data in parallel
+    getMatchOdds(matchId).then((r) => setOdds(r.data)).catch(() => {});
+    getMatchInjuries(matchId).then((r) => setInjuries(r.data || [])).catch(() => {});
+    getMatchLineups(matchId).then((r) => setLineups(r.data || [])).catch(() => {});
+    getMatchExplanation(matchId).then((r) => setExplanation(r.data)).catch(() => {});
   }, [matchId]);
 
   if (loading) {
@@ -178,6 +246,17 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
       : prediction?.confidence === "media"
         ? "var(--accent-yellow)"
         : "var(--accent-red)";
+
+  // Se um jogador foi selecionado, renderizar a predição individual
+  if (selectedPlayerApiId) {
+    return (
+      <PlayerMatchPrediction
+        matchId={matchId}
+        playerApiId={selectedPlayerApiId}
+        onBack={() => setSelectedPlayerApiId(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -519,6 +598,269 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
           <p className="text-[var(--text-secondary)] text-sm">
             Modelos não treinados — treine na aba Dados para ver a predição.
           </p>
+        </div>
+      )}
+
+      {/* ─── Odds: Modelo vs Casas de Apostas ─── */}
+      {odds && prediction && (
+        <div className="bg-[var(--bg-card)] rounded-xl p-5 border border-[var(--border-color)]">
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-4">
+            Modelo vs Casas de Apostas ({odds.bookmaker})
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border-color)] text-[var(--text-secondary)]">
+                  <th className="py-2 px-3 text-left font-medium">Mercado</th>
+                  <th className="py-2 px-3 text-center font-medium">Modelo</th>
+                  <th className="py-2 px-3 text-center font-medium">Odds Impl.</th>
+                  <th className="py-2 px-3 text-center font-medium">Odd</th>
+                </tr>
+              </thead>
+              <tbody>
+                <OddsRow
+                  label={`Vitória ${match!.home_team.name}`}
+                  modelProb={prediction.home_win_prob}
+                  oddsProb={odds.match_winner_probs?.home}
+                  odd={odds.match_winner?.home}
+                />
+                <OddsRow label="Empate" modelProb={prediction.draw_prob} oddsProb={odds.match_winner_probs?.draw} odd={odds.match_winner?.draw} />
+                <OddsRow
+                  label={`Vitória ${match!.away_team.name}`}
+                  modelProb={prediction.away_win_prob}
+                  oddsProb={odds.match_winner_probs?.away}
+                  odd={odds.match_winner?.away}
+                />
+                {odds.over_under_25?.over && (
+                  <OddsRow label="Over 2.5" modelProb={prediction.over_25} oddsProb={odds.over_under_25.over ? 1 / odds.over_under_25.over : null} odd={odds.over_under_25.over} />
+                )}
+                {odds.over_under_25?.under && (
+                  <OddsRow label="Under 2.5" modelProb={1 - prediction.over_25} oddsProb={odds.over_under_25.under ? 1 / odds.over_under_25.under : null} odd={odds.over_under_25.under} />
+                )}
+                {odds.btts?.yes && (
+                  <OddsRow label="BTTS Sim" modelProb={prediction.btts_prob} oddsProb={odds.btts.yes ? 1 / odds.btts.yes : null} odd={odds.btts.yes} />
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-[var(--text-secondary)] mt-3">
+            Verde = modelo vê valor (probabilidade do modelo {'>'} probabilidade da odd). Odds <b>não</b> influenciam o modelo.
+          </p>
+        </div>
+      )}
+
+      {/* ─── Lesões / Suspensões ─── */}
+      {injuries.length > 0 && (
+        <div className="bg-[var(--bg-card)] rounded-xl p-5 border border-[var(--border-color)]">
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-4">
+            Lesões e Suspensões
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {injuries.map((team) => (
+              <div key={team.team.api_id}>
+                <div className="flex items-center gap-2 mb-2">
+                  {team.team.logo && (
+                    <Image src={team.team.logo} alt={team.team.name} width={20} height={20} />
+                  )}
+                  <span className="text-sm font-semibold">{team.team.name}</span>
+                  <span className="text-[10px] text-[var(--accent-red)]">({team.injuries.length})</span>
+                </div>
+                <div className="space-y-1">
+                  {team.injuries.map((inj, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-sm py-1 px-2 rounded bg-[var(--bg-secondary)]">
+                      {inj.player_photo && (
+                        <Image src={inj.player_photo} alt={inj.player_name} width={24} height={24} className="rounded-full" />
+                      )}
+                      <span className="flex-1">{inj.player_name}</span>
+                      <span className="text-[10px] text-[var(--accent-red)]">{inj.reason || inj.type}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Escalações (jogos finalizados) ─── */}
+      {lineups.length > 0 && (
+        <div className="bg-[var(--bg-card)] rounded-xl p-5 border border-[var(--border-color)]">
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-4">
+            Escalações
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {lineups.map((team) => (
+              <div key={team.team.api_id}>
+                <div className="flex items-center gap-2 mb-2">
+                  {team.team.logo && (
+                    <Image src={team.team.logo} alt={team.team.name} width={20} height={20} />
+                  )}
+                  <span className="text-sm font-semibold">{team.team.name}</span>
+                  {team.formation && (
+                    <span className="text-[10px] bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded">{team.formation}</span>
+                  )}
+                </div>
+                <div className="text-xs space-y-0.5">
+                  <p className="text-[var(--text-secondary)] font-medium mb-1">Titulares</p>
+                  {team.starters.map((p) => (
+                    <button
+                      key={p.player_api_id}
+                      onClick={() => setSelectedPlayerApiId(p.player_api_id)}
+                      className="flex gap-2 py-0.5 w-full text-left hover:bg-[var(--bg-secondary)] rounded px-1 transition-colors group"
+                    >
+                      <span className="text-[var(--text-secondary)] w-5 text-right">{p.player_number || ""}</span>
+                      <span className="text-[var(--accent-blue)] w-4">{p.player_pos || ""}</span>
+                      <span className="group-hover:text-[var(--accent-blue)] transition-colors">{p.player_name}</span>
+                      <span className="ml-auto text-[9px] text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity">Ver predição →</span>
+                    </button>
+                  ))}
+                  {team.substitutes.length > 0 && (
+                    <>
+                      <p className="text-[var(--text-secondary)] font-medium mt-2 mb-1">Reservas</p>
+                      {team.substitutes.map((p) => (
+                        <button
+                          key={p.player_api_id}
+                          onClick={() => setSelectedPlayerApiId(p.player_api_id)}
+                          className="flex gap-2 py-0.5 w-full text-left text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] rounded px-1 transition-colors group"
+                        >
+                          <span className="w-5 text-right">{p.player_number || ""}</span>
+                          <span className="w-4">{p.player_pos || ""}</span>
+                          <span className="group-hover:text-[var(--accent-blue)] transition-colors">{p.player_name}</span>
+                          <span className="ml-auto text-[9px] opacity-0 group-hover:opacity-100 transition-opacity">Ver predição →</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Explicação da Predição ─── */}
+      {explanation && (explanation.key_factors.length > 0 || explanation.dixon_coles) && (
+        <div className="bg-[var(--bg-card)] rounded-xl p-5 border border-[var(--border-color)]">
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-4">
+            Por que esta Predição?
+          </h3>
+
+          {/* Fatores-chave */}
+          {explanation.key_factors.length > 0 && (
+            <div className="space-y-2 mb-5">
+              {explanation.key_factors.map((f, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-2 text-sm py-2 px-3 rounded"
+                  style={{
+                    backgroundColor:
+                      f.type === "positive_home" ? "rgba(34,197,94,0.08)"
+                      : f.type === "positive_away" ? "rgba(239,68,68,0.08)"
+                      : f.type === "negative_home" ? "rgba(239,68,68,0.06)"
+                      : f.type === "formula" ? "rgba(59,130,246,0.08)"
+                      : f.type === "h2h" ? "rgba(234,179,8,0.08)"
+                      : "rgba(156,163,175,0.06)",
+                  }}
+                >
+                  <span className="flex-shrink-0 mt-0.5">
+                    {f.type === "positive_home" || f.type === "positive_away" ? "✅"
+                    : f.type === "negative_home" ? "⚠️"
+                    : f.type === "formula" ? "📐"
+                    : f.type === "h2h" ? "🔄"
+                    : f.type === "xgboost_context" ? "📊"
+                    : "ℹ️"}
+                  </span>
+                  <span>{f.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Dixon-Coles details */}
+          {explanation.dixon_coles && (
+            <div>
+              <h4 className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">
+                Parâmetros Dixon-Coles
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-sm">
+                <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
+                  <div className="text-lg font-bold text-[var(--accent-blue)]">
+                    {explanation.dixon_coles.home_attack.toFixed(3)}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)]">
+                    Ataque {match!.home_team.name.split(" ")[0]} ({explanation.dixon_coles.home_attack_rank}º)
+                  </div>
+                </div>
+                <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
+                  <div className="text-lg font-bold text-[var(--accent-blue)]">
+                    {explanation.dixon_coles.home_defense.toFixed(3)}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)]">
+                    Defesa {match!.home_team.name.split(" ")[0]} ({explanation.dixon_coles.home_defense_rank}º)
+                  </div>
+                </div>
+                <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
+                  <div className="text-lg font-bold text-[var(--accent-red)]">
+                    {explanation.dixon_coles.away_attack.toFixed(3)}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)]">
+                    Ataque {match!.away_team.name.split(" ")[0]} ({explanation.dixon_coles.away_attack_rank}º)
+                  </div>
+                </div>
+                <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
+                  <div className="text-lg font-bold text-[var(--accent-red)]">
+                    {explanation.dixon_coles.away_defense.toFixed(3)}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)]">
+                    Defesa {match!.away_team.name.split(" ")[0]} ({explanation.dixon_coles.away_defense_rank}º)
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-2 text-center">
+                Ataque: valores maiores = mais gols. Defesa: valores menores = menos gols sofridos. Ranking de {explanation.dixon_coles.total_teams} times.
+              </p>
+            </div>
+          )}
+
+          {/* Features do XGBoost */}
+          {explanation.features && (
+            <div className="mt-5">
+              <h4 className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">
+                Features do XGBoost — Forma Recente
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="font-semibold text-xs mb-2">{match!.home_team.name} (Casa)</p>
+                  <div className="space-y-1 text-xs">
+                    <FeatureRow label="Gols marcados/jogo" value={explanation.features.home_as_home?.avg_goals_scored} />
+                    <FeatureRow label="Gols sofridos/jogo" value={explanation.features.home_as_home?.avg_goals_conceded} />
+                    <FeatureRow label="Chutes/jogo" value={explanation.features.home_as_home?.avg_shots} />
+                    <FeatureRow label="Escanteios/jogo" value={explanation.features.home_as_home?.avg_corners} />
+                    <FeatureRow label="Taxa de vitória (casa)" value={explanation.features.home_as_home?.win_rate} pct />
+                    <FeatureRow label="Posse média" value={explanation.features.home_as_home?.avg_possession} suffix="%" />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-xs mb-2">{match!.away_team.name} (Fora)</p>
+                  <div className="space-y-1 text-xs">
+                    <FeatureRow label="Gols marcados/jogo" value={explanation.features.away_as_away?.avg_goals_scored} />
+                    <FeatureRow label="Gols sofridos/jogo" value={explanation.features.away_as_away?.avg_goals_conceded} />
+                    <FeatureRow label="Chutes/jogo" value={explanation.features.away_as_away?.avg_shots} />
+                    <FeatureRow label="Escanteios/jogo" value={explanation.features.away_as_away?.avg_corners} />
+                    <FeatureRow label="Taxa de vitória (fora)" value={explanation.features.away_as_away?.win_rate} pct />
+                    <FeatureRow label="Posse média" value={explanation.features.away_as_away?.avg_possession} suffix="%" />
+                  </div>
+                </div>
+              </div>
+              {explanation.features.h2h && explanation.features.h2h.matches_count > 0 && (
+                <div className="mt-3 text-xs text-center text-[var(--text-secondary)]">
+                  H2H ({explanation.features.h2h.matches_count} jogos): {explanation.features.h2h.home_wins}V{" "}
+                  {explanation.features.h2h.draws}E {explanation.features.h2h.away_wins}D — média{" "}
+                  {explanation.features.h2h.avg_total_goals?.toFixed(1)} gols/jogo
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

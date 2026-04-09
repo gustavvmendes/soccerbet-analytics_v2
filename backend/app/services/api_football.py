@@ -24,6 +24,33 @@ class APIFootballService:
 
         return data.get("response", [])
 
+    def _paginated_request(self, endpoint, params):
+        """Makes paginated requests and returns all results."""
+        all_results = []
+        page = 1
+        while True:
+            params["page"] = page
+            url = f"{self.base_url}/{endpoint}"
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("errors") and len(data["errors"]) > 0:
+                raise Exception(f"API-Football error: {data['errors']}")
+
+            results = data.get("response", [])
+            if not results:
+                break
+            all_results.extend(results)
+
+            paging = data.get("paging", {})
+            if page >= paging.get("total", 1):
+                break
+            page += 1
+            time.sleep(0.35)
+
+        return all_results
+
     def get_leagues(self, country=None):
         params = {}
         if country:
@@ -86,3 +113,144 @@ class APIFootballService:
         upcoming_statuses = {"NS", "TBD", "PST", "SUSP"}
         upcoming = [f for f in fixtures if f["fixture"]["status"]["short"] in upcoming_statuses]
         return upcoming
+
+    # ── Novos endpoints ────────────────────────────────────
+
+    def get_squad(self, team_api_id):
+        """Retorna o elenco atual de um time."""
+        return self._request("players/squads", {"team": team_api_id})
+
+    def get_player_stats(self, team_api_id, season):
+        """Retorna estatísticas dos jogadores de um time na temporada (paginado)."""
+        return self._paginated_request("players", {
+            "team": team_api_id,
+            "season": season,
+            "league": self.league_id,
+        })
+
+    def get_fixture_lineups(self, fixture_id):
+        """Retorna escalações de uma partida."""
+        return self._request("fixtures/lineups", {"fixture": fixture_id})
+
+    def get_fixture_events(self, fixture_id):
+        """Retorna eventos de uma partida (gols, cartões, substituições)."""
+        return self._request("fixtures/events", {"fixture": fixture_id})
+
+    def get_injuries(self, fixture_id=None, league=None, season=None):
+        """Retorna lesões/suspensões. Pode filtrar por fixture ou league+season."""
+        params = {}
+        if fixture_id:
+            params["fixture"] = fixture_id
+        elif league and season:
+            params["league"] = league
+            params["season"] = season
+        return self._request("injuries", params)
+
+    def get_odds(self, fixture_id):
+        """Retorna odds pré-jogo para uma partida."""
+        return self._request("odds", {"fixture": fixture_id})
+
+    def collect_all_squads(self, season):
+        """Coleta elencos e stats de jogadores de todos os times da temporada."""
+        teams = self.get_teams(season)
+        all_data = []
+        for i, team_entry in enumerate(teams):
+            team_api_id = team_entry["team"]["id"]
+            team_name = team_entry["team"]["name"]
+            try:
+                # Elenco atual
+                squad = self.get_squad(team_api_id)
+                time.sleep(0.35)
+
+                # Stats dos jogadores na temporada
+                player_stats = self.get_player_stats(team_api_id, season)
+                time.sleep(0.35)
+
+                all_data.append({
+                    "team_api_id": team_api_id,
+                    "team_name": team_name,
+                    "squad": squad,
+                    "player_stats": player_stats,
+                })
+
+                if (i + 1) % 5 == 0:
+                    print(f"  Coletados {i + 1}/{len(teams)} elencos...")
+            except Exception as e:
+                print(f"Erro ao coletar elenco de {team_name}: {e}")
+                continue
+
+        return all_data
+
+    def collect_lineups_for_matches(self, season):
+        """Coleta escalações de partidas finalizadas."""
+        fixtures = self.get_fixtures(season)
+        finished = [f for f in fixtures if f["fixture"]["status"]["short"] == "FT"]
+        collected = []
+
+        for i, fixture in enumerate(finished):
+            fixture_id = fixture["fixture"]["id"]
+            try:
+                lineups = self.get_fixture_lineups(fixture_id)
+                if lineups:
+                    collected.append({
+                        "fixture_id": fixture_id,
+                        "lineups": lineups,
+                    })
+                time.sleep(0.35)
+                if (i + 1) % 50 == 0:
+                    print(f"  Coletadas escalações de {i + 1}/{len(finished)} partidas...")
+            except Exception as e:
+                print(f"Erro ao coletar lineups do fixture {fixture_id}: {e}")
+                continue
+
+        return collected
+
+    def collect_odds_for_upcoming(self, season):
+        """Coleta odds pré-jogo para partidas futuras."""
+        fixtures = self.get_fixtures(season)
+        upcoming_statuses = {"NS", "TBD"}
+        upcoming = [f for f in fixtures if f["fixture"]["status"]["short"] in upcoming_statuses]
+        collected = []
+
+        for i, fixture in enumerate(upcoming):
+            fixture_id = fixture["fixture"]["id"]
+            try:
+                odds = self.get_odds(fixture_id)
+                if odds:
+                    collected.append({
+                        "fixture_id": fixture_id,
+                        "odds": odds,
+                    })
+                time.sleep(0.35)
+                if (i + 1) % 20 == 0:
+                    print(f"  Coletadas odds de {i + 1}/{len(upcoming)} partidas...")
+            except Exception as e:
+                print(f"Erro ao coletar odds do fixture {fixture_id}: {e}")
+                continue
+
+        return collected
+
+    def collect_injuries_upcoming(self, season):
+        """Coleta lesões/suspensões para partidas futuras."""
+        fixtures = self.get_fixtures(season)
+        upcoming_statuses = {"NS", "TBD"}
+        upcoming = [f for f in fixtures if f["fixture"]["status"]["short"] in upcoming_statuses]
+        collected = []
+
+        for i, fixture in enumerate(upcoming):
+            fixture_id = fixture["fixture"]["id"]
+            try:
+                injuries = self.get_injuries(fixture_id=fixture_id)
+                if injuries:
+                    collected.append({
+                        "fixture_id": fixture_id,
+                        "injuries": injuries,
+                    })
+                time.sleep(0.35)
+                if (i + 1) % 20 == 0:
+                    print(f"  Coletadas lesões de {i + 1}/{len(upcoming)} partidas...")
+            except Exception as e:
+                print(f"Erro ao coletar injuries do fixture {fixture_id}: {e}")
+                continue
+
+        return collected

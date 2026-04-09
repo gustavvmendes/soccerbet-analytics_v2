@@ -123,3 +123,108 @@ def run_backtest():
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": f"Erro no backtesting: {str(e)}"}), 500
+
+
+@data_collection_bp.route("/collect/squads", methods=["POST"])
+def collect_squads():
+    """Coleta elencos e estatísticas dos jogadores de todos os times."""
+    data = request.get_json() or {}
+    season = data.get("season", 2026)
+
+    if not current_app.config.get("API_FOOTBALL_KEY"):
+        return jsonify({"error": "API_FOOTBALL_KEY não configurada"}), 400
+
+    try:
+        api = APIFootballService()
+        processor = DataProcessor()
+
+        print(f"Coletando elencos da temporada {season}...")
+        all_data = api.collect_all_squads(season)
+        result = processor.process_squads_and_stats(all_data, season)
+
+        return jsonify({
+            "message": f"Elencos da temporada {season} coletados",
+            "players_created": result["players"],
+            "stats_processed": result["stats"],
+            "teams_collected": len(all_data),
+        })
+    except Exception as e:
+        return jsonify({"error": f"Erro: {str(e)}"}), 500
+
+
+@data_collection_bp.route("/collect/lineups", methods=["POST"])
+def collect_lineups():
+    """Coleta escalações de partidas finalizadas."""
+    data = request.get_json() or {}
+    season = data.get("season", 2026)
+
+    if not current_app.config.get("API_FOOTBALL_KEY"):
+        return jsonify({"error": "API_FOOTBALL_KEY não configurada"}), 400
+
+    try:
+        api = APIFootballService()
+        processor = DataProcessor()
+
+        print(f"Coletando escalações da temporada {season}...")
+        lineups = api.collect_lineups_for_matches(season)
+        processed = processor.process_lineups(lineups)
+
+        return jsonify({
+            "message": f"Escalações da temporada {season} coletadas",
+            "matches_with_lineups": len(lineups),
+            "lineups_processed": processed,
+        })
+    except Exception as e:
+        return jsonify({"error": f"Erro: {str(e)}"}), 500
+
+
+@data_collection_bp.route("/collect/odds", methods=["POST"])
+def collect_odds():
+    """Coleta odds pré-jogo para partidas futuras."""
+    data = request.get_json() or {}
+    season = data.get("season", 2026)
+
+    if not current_app.config.get("API_FOOTBALL_KEY"):
+        return jsonify({"error": "API_FOOTBALL_KEY não configurada"}), 400
+
+    try:
+        api = APIFootballService()
+        processor = DataProcessor()
+
+        print(f"Coletando odds da temporada {season}...")
+        odds_data = api.collect_odds_for_upcoming(season)
+        processed = processor.process_odds(odds_data)
+
+        return jsonify({
+            "message": f"Odds coletadas com sucesso",
+            "fixtures_with_odds": len(odds_data),
+            "odds_processed": processed,
+        })
+    except Exception as e:
+        return jsonify({"error": f"Erro: {str(e)}"}), 500
+
+
+@data_collection_bp.route("/collect/injuries", methods=["POST"])
+def collect_injuries():
+    """Coleta lesões/suspensões para partidas futuras."""
+    data = request.get_json() or {}
+    season = data.get("season", 2026)
+
+    if not current_app.config.get("API_FOOTBALL_KEY"):
+        return jsonify({"error": "API_FOOTBALL_KEY não configurada"}), 400
+
+    try:
+        api = APIFootballService()
+        processor = DataProcessor()
+
+        print(f"Coletando lesões da temporada {season}...")
+        injuries_data = api.collect_injuries_upcoming(season)
+        processed = processor.process_injuries(injuries_data)
+
+        return jsonify({
+            "message": f"Lesões coletadas com sucesso",
+            "fixtures_with_injuries": len(injuries_data),
+            "injuries_processed": processed,
+        })
+    except Exception as e:
+        return jsonify({"error": f"Erro: {str(e)}"}), 500
