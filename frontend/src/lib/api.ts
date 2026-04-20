@@ -337,4 +337,103 @@ export interface PlayerMatchPrediction {
 export const getPlayerMatchPrediction = (matchId: number, playerApiId: number) =>
   api.get<PlayerMatchPrediction>(`/matches/${matchId}/player-prediction/${playerApiId}`);
 
+// ── Live match analysis ─────────────────────────────
+
+export interface LiveTeam {
+  api_id: number;
+  name: string;
+  logo: string | null;
+}
+
+export interface LiveScore {
+  home: number;
+  away: number;
+  halftime: { home: number | null; away: number | null };
+}
+
+export interface LiveEvent {
+  time_elapsed: number | null;
+  time_extra: number | null;
+  team_id: number;
+  team_name: string;
+  player_name: string | null;
+  assist_name: string | null;
+  type: string;
+  detail: string;
+  comments: string | null;
+}
+
+export interface LiveProbabilities {
+  home_win_prob: number;
+  draw_prob: number;
+  away_win_prob: number;
+  lambda_home_remaining: number;
+  lambda_away_remaining: number;
+  over_under: Record<string, number>;
+  home_xg: number;
+  away_xg: number;
+  next_goal: { home: number; away: number; no_more_goals: number };
+  btts_prob: number;
+  most_likely_final_score: { home: number; away: number };
+  modifiers: {
+    home_red_cards: number;
+    away_red_cards: number;
+    home_performance: number;
+    away_performance: number;
+    remaining_fraction: number;
+  };
+}
+
+export interface LiveMomentum {
+  home: number;
+  away: number;
+  trend: string;
+  home_activity: { shots: number; corners: number; dangerous_attacks: number };
+  away_activity: { shots: number; corners: number; dangerous_attacks: number };
+}
+
+export interface LiveInsight {
+  type: string;
+  text: string;
+  severity: string;
+}
+
+export interface LiveMatchAnalysis {
+  fixture_id: number;
+  status: string;
+  elapsed: number;
+  home_team: LiveTeam;
+  away_team: LiveTeam;
+  score: LiveScore;
+  statistics: Record<string, number>;
+  events: LiveEvent[];
+  live_probabilities: LiveProbabilities;
+  pre_match_probabilities: {
+    home_win: number | null;
+    draw: number | null;
+    away_win: number | null;
+  };
+  momentum: LiveMomentum;
+  insights: LiveInsight[];
+  snapshot_count: number;
+}
+
+export interface LiveMatchesResponse {
+  matches: LiveMatchAnalysis[];
+  last_updated: string | null;
+  match_count?: number;
+  status?: string;
+}
+
+export const getLiveMatches = () =>
+  api.get<LiveMatchesResponse>("/live/matches");
+
+export const getLiveMatchDetail = (fixtureId: number) =>
+  api.get<LiveMatchAnalysis>(`/live/match/${fixtureId}`);
+
+export const getLiveSnapshots = (fixtureId: number) =>
+  api.get<{ fixture_id: number; snapshots: any[]; count: number }>(
+    `/live/match/${fixtureId}/snapshots`
+  );
+
 export default api;

@@ -230,6 +230,15 @@ class APIFootballService:
 
         return collected
 
+    def get_live_fixtures(self):
+        """Retorna todas as partidas ao vivo do Brasileirão."""
+        live_statuses = "1H-2H-HT-ET-BT-P-SUSP-INT-LIVE"
+        return self._request("fixtures", {
+            "league": self.league_id,
+            "season": 2026,
+            "status": live_statuses,
+        })
+
     def collect_injuries_upcoming(self, season):
         """Coleta lesões/suspensões para partidas futuras."""
         fixtures = self.get_fixtures(season)

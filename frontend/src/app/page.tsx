@@ -5,9 +5,10 @@ import DataManager from "@/components/DataManager";
 import MatchHistory from "@/components/MatchHistory";
 import UpcomingMatches from "@/components/UpcomingMatches";
 import TeamSquad from "@/components/TeamSquad";
+import LiveMatches from "@/components/LiveMatches";
 import { Team, getTeams } from "@/lib/api";
 
-type Tab = "upcoming" | "history" | "squads" | "data";
+type Tab = "live" | "upcoming" | "history" | "squads" | "data";
 
 export default function Home() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -31,8 +32,9 @@ export default function Home() {
       </header>
 
       {/* Tabs */}
-      <nav className="flex gap-1 mb-8 bg-[var(--bg-secondary)] rounded-lg p-1 max-w-md mx-auto">
+      <nav className="flex gap-1 mb-8 bg-[var(--bg-secondary)] rounded-lg p-1 max-w-lg mx-auto">
         {([
+          ["live", "Ao Vivo"],
           ["upcoming", "Próximos Jogos"],
           ["history", "Histórico"],
           ["squads", "Elencos"],
@@ -51,6 +53,9 @@ export default function Home() {
           </button>
         ))}
       </nav>
+
+      {/* Tab: Ao Vivo */}
+      {activeTab === "live" && <LiveMatches />}
 
       {/* Tab: Próximos Jogos */}
       {activeTab === "upcoming" && <UpcomingMatches teams={teams} />}

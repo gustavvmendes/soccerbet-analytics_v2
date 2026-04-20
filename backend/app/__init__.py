@@ -15,10 +15,12 @@ def create_app():
     from app.routes.matches import matches_bp
     from app.routes.predictions import predictions_bp
     from app.routes.data_collection import data_collection_bp
+    from app.routes.live import live_bp
 
     app.register_blueprint(matches_bp, url_prefix="/api/matches")
     app.register_blueprint(predictions_bp, url_prefix="/api/predictions")
     app.register_blueprint(data_collection_bp, url_prefix="/api/data")
+    app.register_blueprint(live_bp, url_prefix="/api/live")
 
     with app.app_context():
         db.create_all()
