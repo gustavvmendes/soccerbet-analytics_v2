@@ -51,16 +51,35 @@ def get_history():
 @matches_bp.route("/upcoming", methods=["GET"])
 def get_upcoming():
     """Retorna próximos jogos agendados."""
+    from datetime import datetime
+
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     per_page = min(per_page, 100)
     team_id = request.args.get("team_id", type=int)
+    include_postponed = request.args.get("include_postponed", "false").lower() == "true"
 
-    query = (
-        Match.query
-        .filter(Match.status.in_(["NS", "TBD", "PST", "SUSP"]))
-        .order_by(Match.date.asc())
-    )
+    if include_postponed:
+        # Mostrar todos: NS, TBD, PST, SUSP
+        query = (
+            Match.query
+            .filter(Match.status.in_(["NS", "TBD", "PST", "SUSP"]))
+            .order_by(Match.date.asc())
+        )
+    else:
+        # Filtrar: NS/TBD normais + PST/SUSP apenas se no futuro
+        now = datetime.utcnow()
+        query = (
+            Match.query
+            .filter(
+                (Match.status.in_(["NS", "TBD"]))
+                | (
+                    Match.status.in_(["PST", "SUSP"])
+                    & (Match.date >= now)
+                )
+            )
+            .order_by(Match.date.asc())
+        )
 
     if team_id:
         team = Team.query.filter_by(api_id=team_id).first()
