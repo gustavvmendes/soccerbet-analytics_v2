@@ -601,8 +601,8 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
         </div>
       )}
 
-      {/* ─── Odds: Modelo vs Casas de Apostas ─── */}
-      {odds && prediction && (
+      {/* ─── Odds: Modelo vs Casas de Apostas (COMENTADO) ─── */}
+      {/* {odds && prediction && (
         <div className="bg-[var(--bg-card)] rounded-xl p-5 border border-[var(--border-color)]">
           <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-4">
             Modelo vs Casas de Apostas ({odds.bookmaker})
@@ -647,7 +647,7 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
             Verde = modelo vê valor (probabilidade do modelo {'>'} probabilidade da odd). Odds <b>não</b> influenciam o modelo.
           </p>
         </div>
-      )}
+      )} */}
 
       {/* ─── Lesões / Suspensões ─── */}
       {injuries.length > 0 && (

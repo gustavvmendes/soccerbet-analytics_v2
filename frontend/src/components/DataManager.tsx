@@ -218,13 +218,13 @@ export default function DataManager() {
           >
             Coletar Escalações
           </button>
-          <button
+          {/* <button
             onClick={() => handleSupplementary(collectOdds, "Odds")}
             disabled={loading}
             className="py-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg text-sm hover:border-[var(--accent-blue)] disabled:opacity-40 transition-colors"
           >
             Coletar Odds Pré-jogo
-          </button>
+          </button> */}
           <button
             onClick={() => handleSupplementary(collectInjuries, "Lesões")}
             disabled={loading}
