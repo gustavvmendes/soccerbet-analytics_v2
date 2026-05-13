@@ -38,7 +38,7 @@ export default function Home() {
           ["upcoming", "Próximos Jogos"],
           ["history", "Histórico"],
           ["squads", "Elencos"],
-          ["data", "Dados"],
+          // ["data", "Dados"],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -66,8 +66,8 @@ export default function Home() {
       {/* Tab: Elencos */}
       {activeTab === "squads" && <TeamSquad teams={teams} />}
 
-      {/* Tab: Dados */}
-      {activeTab === "data" && <DataManager />}
+      {/* Tab: Dados (COMENTADO) */}
+      {/* {activeTab === "data" && <DataManager />} */}
     </main>
   );
 }
