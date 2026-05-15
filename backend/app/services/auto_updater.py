@@ -5,10 +5,15 @@ Servico de atualizacao automatica de dados.
 - Opcionalmente, agenda atualizacoes periodicas (a cada N horas).
 """
 
+import os
 import threading
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
+
+# Coleta de elencos é cara em chamadas de API (~2 req/time × ~24 times = ~48 req).
+# Por isso roda apenas se passou X horas desde a última coleta.
+SQUAD_UPDATE_INTERVAL_HOURS = 12
 
 # Controle de estado
 _update_status = {
@@ -92,6 +97,8 @@ def run_incremental_update(app):
             "upcoming_fixtures": 0,
             "odds_collected": 0,
             "injuries_collected": 0,
+            "players_updated": 0,
+            "player_stats_updated": 0,
         }
 
         for season in seasons:
@@ -104,13 +111,16 @@ def run_incremental_update(app):
         # Resumo final
         msg = (
             "Atualizacao concluida: "
-            "%d novas, %d atualizadas, %d futuros, %d odds, %d lesoes"
+            "%d novas, %d atualizadas, %d futuros, %d odds, %d lesoes, "
+            "%d jogadores, %d stats"
             % (
                 total_summary["new_matches"],
                 total_summary["updated_matches"],
                 total_summary["upcoming_fixtures"],
                 total_summary["odds_collected"],
                 total_summary["injuries_collected"],
+                total_summary["players_updated"],
+                total_summary["player_stats_updated"],
             )
         )
         print("")
@@ -134,6 +144,8 @@ def _update_season(app, season):
         "upcoming_fixtures": 0,
         "odds_collected": 0,
         "injuries_collected": 0,
+        "players_updated": 0,
+        "player_stats_updated": 0,
     }
 
     with app.app_context():
@@ -355,7 +367,72 @@ def _update_season(app, season):
         if injuries_count:
             print("[AutoUpdater] OK - %d lesao(oes) coletada(s)" % injuries_count)
 
+        # --- 7. Elencos e stats de jogadores (cadência separada) ---
+        if _squads_need_update(app, season):
+            print("[AutoUpdater] Atualizando elencos da temporada %d..." % season)
+            try:
+                squad_data = api.collect_all_squads(season)
+                squad_result = processor.process_squads_and_stats(squad_data, season)
+                summary["players_updated"] = squad_result.get("players", 0)
+                summary["player_stats_updated"] = squad_result.get("stats", 0)
+                _mark_squads_updated(app, season)
+                print(
+                    "[AutoUpdater] OK - %d jogador(es), %d stats atualizadas"
+                    % (summary["players_updated"], summary["player_stats_updated"])
+                )
+            except Exception as e:
+                print("[AutoUpdater] Erro ao atualizar elencos: %s" % e)
+        else:
+            last = _squads_last_update_time(app, season)
+            if last:
+                age = datetime.now() - last
+                hours = age.total_seconds() / 3600
+                print(
+                    "[AutoUpdater] Elencos atualizados ha %.1fh (proxima atualizacao em %.1fh)"
+                    % (hours, max(0, SQUAD_UPDATE_INTERVAL_HOURS - hours))
+                )
+
     return summary
+
+
+# ─────────────────────────────────────────────────────────────
+# Controle de cadência para coleta de elencos
+# ─────────────────────────────────────────────────────────────
+def _squads_marker_path(app, season):
+    """Caminho do arquivo que marca a última atualização de elencos."""
+    instance_dir = app.instance_path
+    os.makedirs(instance_dir, exist_ok=True)
+    return os.path.join(instance_dir, "last_squad_update_%d.txt" % season)
+
+
+def _squads_last_update_time(app, season):
+    """Retorna datetime da última atualização de elencos (None se nunca)."""
+    path = _squads_marker_path(app, season)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return datetime.fromisoformat(f.read().strip())
+    except Exception:
+        return None
+
+
+def _squads_need_update(app, season):
+    """True se passou mais que SQUAD_UPDATE_INTERVAL_HOURS desde a última coleta."""
+    last = _squads_last_update_time(app, season)
+    if last is None:
+        return True
+    return datetime.now() - last >= timedelta(hours=SQUAD_UPDATE_INTERVAL_HOURS)
+
+
+def _mark_squads_updated(app, season):
+    """Grava timestamp atual no marker da temporada."""
+    path = _squads_marker_path(app, season)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(datetime.now().isoformat())
+    except Exception as e:
+        print("[AutoUpdater] Erro ao gravar marker de squads: %s" % e)
 
 
 def start_startup_update(app):

@@ -219,6 +219,8 @@ export interface ExplanationFeatures {
 export interface KeyFactor {
   type: string;
   text: string;
+  subtext?: string;
+  technical?: string;
 }
 
 export interface ExplanationData {

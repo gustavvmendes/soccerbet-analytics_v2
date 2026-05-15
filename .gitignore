@@ -28,3 +28,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.claude/
+
+# Outputs gerados
+backend/backtest_result.json

@@ -320,12 +320,12 @@ class Predictor:
             if dc["home_attack_rank"] <= 5:
                 factors.append({
                     "type": "positive_home",
-                    "text": f"{home_team.name} tem o {dc['home_attack_rank']}º melhor ataque do campeonato (param: {dc['home_attack']:.3f})",
+                    "text": f"{home_team.name} tem o {dc['home_attack_rank']}º melhor ataque do campeonato",
                 })
             elif dc["home_attack_rank"] >= total - 4:
                 factors.append({
                     "type": "negative_home",
-                    "text": f"{home_team.name} tem o {dc['home_attack_rank']}º ataque (entre os piores) — param: {dc['home_attack']:.3f}",
+                    "text": f"{home_team.name} tem o {dc['home_attack_rank']}º ataque (entre os piores do campeonato)",
                 })
 
             # Defesa do visitante
@@ -344,23 +344,27 @@ class Predictor:
             if dc["away_attack_rank"] <= 5:
                 factors.append({
                     "type": "positive_away",
-                    "text": f"{away_team.name} tem o {dc['away_attack_rank']}º melhor ataque (param: {dc['away_attack']:.3f})",
+                    "text": f"{away_team.name} tem o {dc['away_attack_rank']}º melhor ataque do campeonato",
                 })
 
             # Vantagem de jogar em casa
             factors.append({
                 "type": "info",
-                "text": f"Mando de campo dá bônus de +{dc['home_advantage_pct']:.0f}% nos gols esperados do mandante",
+                "text": f"Jogar em casa aumenta em {dc['home_advantage_pct']:.0f}% a expectativa de gols do mandante",
             })
 
-            # Fórmulas
+            # Previsão de gols (texto natural + cálculo técnico recolhível)
             factors.append({
-                "type": "formula",
-                "text": f"λ {home_team.name} = {dc['formula_home']} gols esperados",
+                "type": "prediction",
+                "text": f"Modelo prevê {dc['lambda_home']:.2f} gols para {home_team.name}",
+                "subtext": "Combina força do ataque do mandante, fragilidade da defesa adversária e vantagem de jogar em casa",
+                "technical": f"λ = {dc['formula_home']}",
             })
             factors.append({
-                "type": "formula",
-                "text": f"λ {away_team.name} = {dc['formula_away']} gols esperados",
+                "type": "prediction",
+                "text": f"Modelo prevê {dc['lambda_away']:.2f} gols para {away_team.name}",
+                "subtext": "Combina força do ataque do visitante e fragilidade da defesa do mandante",
+                "technical": f"λ = {dc['formula_away']}",
             })
 
         if feat:
@@ -410,17 +414,17 @@ class Predictor:
                 aw = h2h.get("away_wins", 0)
                 factors.append({
                     "type": "h2h",
-                    "text": f"Confronto direto ({total_h2h} jogos): {hw}V {d}E {aw}D — média de {h2h.get('avg_total_goals', 0):.1f} gols",
+                    "text": f"Confronto direto nos últimos {total_h2h} jogos: {home_team.name} venceu {hw}, {away_team.name} venceu {aw}, {d} empate(s) — média de {h2h.get('avg_total_goals', 0):.1f} gols por jogo",
                 })
 
-            # Chutes e escanteios para explicar XGBoost
+            # Chutes e escanteios — usa forma específica (casa/fora) para bater com a tabela
             factors.append({
                 "type": "xgboost_context",
-                "text": f"{home_team.name} média de {hf.get('avg_shots', 0):.1f} chutes e {hf.get('avg_corners', 0):.1f} escanteios/jogo",
+                "text": f"{home_team.name} média de {hh.get('avg_shots', 0):.1f} chutes e {hh.get('avg_corners', 0):.1f} escanteios/jogo em casa",
             })
             factors.append({
                 "type": "xgboost_context",
-                "text": f"{away_team.name} média de {af.get('avg_shots', 0):.1f} chutes e {af.get('avg_corners', 0):.1f} escanteios/jogo",
+                "text": f"{away_team.name} média de {aa.get('avg_shots', 0):.1f} chutes e {aa.get('avg_corners', 0):.1f} escanteios/jogo fora",
             })
 
         return factors

@@ -751,26 +751,45 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
               {explanation.key_factors.map((f, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 text-sm py-2 px-3 rounded"
+                  className="text-sm py-2 px-3 rounded"
                   style={{
                     backgroundColor:
                       f.type === "positive_home" ? "rgba(34,197,94,0.08)"
                       : f.type === "positive_away" ? "rgba(239,68,68,0.08)"
                       : f.type === "negative_home" ? "rgba(239,68,68,0.06)"
-                      : f.type === "formula" ? "rgba(59,130,246,0.08)"
+                      : f.type === "prediction" ? "rgba(59,130,246,0.08)"
                       : f.type === "h2h" ? "rgba(234,179,8,0.08)"
                       : "rgba(156,163,175,0.06)",
                   }}
                 >
-                  <span className="flex-shrink-0 mt-0.5">
-                    {f.type === "positive_home" || f.type === "positive_away" ? "✅"
-                    : f.type === "negative_home" ? "⚠️"
-                    : f.type === "formula" ? "📐"
-                    : f.type === "h2h" ? "🔄"
-                    : f.type === "xgboost_context" ? "📊"
-                    : "ℹ️"}
-                  </span>
-                  <span>{f.text}</span>
+                  <div className="flex items-start gap-2">
+                    <span className="flex-shrink-0 mt-0.5">
+                      {f.type === "positive_home" || f.type === "positive_away" ? "✅"
+                      : f.type === "negative_home" ? "⚠️"
+                      : f.type === "prediction" ? "📐"
+                      : f.type === "h2h" ? "🔄"
+                      : f.type === "xgboost_context" ? "📊"
+                      : "ℹ️"}
+                    </span>
+                    <span>{f.text}</span>
+                  </div>
+                  {(f.subtext || f.technical) && (
+                    <div className="ml-7 mt-1">
+                      {f.subtext && (
+                        <p className="text-xs text-[var(--text-secondary)]">{f.subtext}</p>
+                      )}
+                      {f.technical && (
+                        <details className="mt-1 text-xs">
+                          <summary className="cursor-pointer text-[var(--text-secondary)] hover:text-[var(--text-primary)] select-none">
+                            Ver cálculo técnico
+                          </summary>
+                          <code className="block mt-1 px-2 py-1 bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)] font-mono">
+                            {f.technical}
+                          </code>
+                        </details>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -779,55 +798,73 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
           {/* Dixon-Coles details */}
           {explanation.dixon_coles && (
             <div>
-              <h4 className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">
-                Parâmetros Dixon-Coles
+              <h4 className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-1">
+                Força das equipes — Ataque e Defesa
               </h4>
+              <p className="text-[11px] text-[var(--text-secondary)] mb-3">
+                Posição de cada time no ranking do campeonato, calculada a partir do histórico de gols marcados e sofridos na temporada.
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-sm">
                 <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
                   <div className="text-lg font-bold text-[var(--accent-blue)]">
-                    {explanation.dixon_coles.home_attack.toFixed(3)}
+                    {explanation.dixon_coles.home_attack_rank}º
                   </div>
                   <div className="text-[10px] text-[var(--text-secondary)]">
-                    Ataque {match!.home_team.name.split(" ")[0]} ({explanation.dixon_coles.home_attack_rank}º)
+                    Ataque {match!.home_team.name.split(" ")[0]}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)] opacity-60 mt-0.5">
+                    índice: {explanation.dixon_coles.home_attack.toFixed(3)}
                   </div>
                 </div>
                 <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
                   <div className="text-lg font-bold text-[var(--accent-blue)]">
-                    {explanation.dixon_coles.home_defense.toFixed(3)}
+                    {explanation.dixon_coles.home_defense_rank}º
                   </div>
                   <div className="text-[10px] text-[var(--text-secondary)]">
-                    Defesa {match!.home_team.name.split(" ")[0]} ({explanation.dixon_coles.home_defense_rank}º)
+                    Defesa {match!.home_team.name.split(" ")[0]}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)] opacity-60 mt-0.5">
+                    índice: {explanation.dixon_coles.home_defense.toFixed(3)}
                   </div>
                 </div>
                 <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
                   <div className="text-lg font-bold text-[var(--accent-red)]">
-                    {explanation.dixon_coles.away_attack.toFixed(3)}
+                    {explanation.dixon_coles.away_attack_rank}º
                   </div>
                   <div className="text-[10px] text-[var(--text-secondary)]">
-                    Ataque {match!.away_team.name.split(" ")[0]} ({explanation.dixon_coles.away_attack_rank}º)
+                    Ataque {match!.away_team.name.split(" ")[0]}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)] opacity-60 mt-0.5">
+                    índice: {explanation.dixon_coles.away_attack.toFixed(3)}
                   </div>
                 </div>
                 <div className="bg-[var(--bg-secondary)] rounded-lg p-3">
                   <div className="text-lg font-bold text-[var(--accent-red)]">
-                    {explanation.dixon_coles.away_defense.toFixed(3)}
+                    {explanation.dixon_coles.away_defense_rank}º
                   </div>
                   <div className="text-[10px] text-[var(--text-secondary)]">
-                    Defesa {match!.away_team.name.split(" ")[0]} ({explanation.dixon_coles.away_defense_rank}º)
+                    Defesa {match!.away_team.name.split(" ")[0]}
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)] opacity-60 mt-0.5">
+                    índice: {explanation.dixon_coles.away_defense.toFixed(3)}
                   </div>
                 </div>
               </div>
               <p className="text-[10px] text-[var(--text-secondary)] mt-2 text-center">
-                Ataque: valores maiores = mais gols. Defesa: valores menores = menos gols sofridos. Ranking de {explanation.dixon_coles.total_teams} times.
+                Posições de 1º (melhor) a {explanation.dixon_coles.total_teams}º (pior) entre os times do campeonato. O índice abaixo é o valor numérico usado pelo modelo Dixon-Coles.
               </p>
             </div>
           )}
 
-          {/* Features do XGBoost */}
+          {/* Forma recente das equipes */}
           {explanation.features && (
             <div className="mt-5">
-              <h4 className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-3">
-                Features do XGBoost — Forma Recente
+              <h4 className="text-xs font-semibold text-[var(--text-secondary)] uppercase mb-1">
+                Forma Recente das Equipes
               </h4>
+              <p className="text-[11px] text-[var(--text-secondary)] mb-3">
+                Médias dos últimos jogos de cada time, considerando apenas atuações em casa (mandante) e fora (visitante).
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="font-semibold text-xs mb-2">{match!.home_team.name} (Casa)</p>
@@ -854,9 +891,11 @@ export default function MatchDetails({ matchId, onBack, backLabel }: Props) {
               </div>
               {explanation.features.h2h && explanation.features.h2h.matches_count > 0 && (
                 <div className="mt-3 text-xs text-center text-[var(--text-secondary)]">
-                  H2H ({explanation.features.h2h.matches_count} jogos): {explanation.features.h2h.home_wins}V{" "}
-                  {explanation.features.h2h.draws}E {explanation.features.h2h.away_wins}D — média{" "}
-                  {explanation.features.h2h.avg_total_goals?.toFixed(1)} gols/jogo
+                  Confronto direto nos últimos {explanation.features.h2h.matches_count} jogos:{" "}
+                  {match!.home_team.name} venceu {explanation.features.h2h.home_wins},{" "}
+                  {match!.away_team.name} venceu {explanation.features.h2h.away_wins},{" "}
+                  {explanation.features.h2h.draws} empate(s) — média de{" "}
+                  {explanation.features.h2h.avg_total_goals?.toFixed(1)} gols por jogo
                 </div>
               )}
             </div>
